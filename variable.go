@@ -2,12 +2,10 @@ package variables
 
 import (
 	"bytes"
-	"reflect"
 	"strconv"
 	"strings"
 	"text/template"
 
-	"github.com/expr-lang/expr"
 	sprig "github.com/go-task/slim-sprig/v3"
 	"github.com/pkg/errors"
 )
@@ -142,88 +140,4 @@ func (p *Variables) setMap(key []string, value string) error {
 			return array.setEnd(index, key[2:], value)
 		}
 	}
-}
-
-func (p *Variables) FromArgs(src []string) error {
-	for _, arg := range src {
-		key, value, found := strings.Cut(arg, "=")
-		if !found {
-			return errors.Errorf("格式错误: %s", arg)
-		}
-		if err := p.Set(key, value); err != nil {
-			return errors.Wrapf(err, "插入错误: %v", arg)
-		}
-	}
-	return nil
-}
-
-// Compile 对象类型转换
-func (p *Variables) Compile() error {
-	var err error
-	for key, value := range *p {
-		switch value.(type) {
-		case *Variables:
-			if err = value.(*Variables).Compile(); err != nil {
-				return err
-			}
-		case *VariablesArray:
-			for _, variables := range *value.(*VariablesArray) {
-				if err = variables.Compile(); err != nil {
-					return err
-				}
-			}
-		case *VariablesArrayValue:
-			var target string
-			var dst = make([]any, 0)
-			for _, variables := range *value.(*VariablesArrayValue) {
-				a, b := covertType(variables)
-				if !b {
-					break
-				}
-				typeOf := reflect.TypeOf(a)
-				if target == "" {
-					target = typeOf.String()
-				}
-				if typeOf.String() != target {
-					break
-				}
-				dst = append(dst, a)
-			}
-			if len(dst) == len(*value.(*VariablesArrayValue)) {
-				(*p)[key] = &dst
-			}
-		default:
-			if value, ok := value.(string); ok {
-				a, b := covertType(value)
-				if b {
-					(*p)[key] = a
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func covertType(src string) (any, bool) {
-	i, err := strconv.Atoi(src)
-	if err == nil {
-		return i, true
-	}
-	float, err := strconv.ParseFloat(src, 64)
-	if err == nil {
-		return float, true
-	}
-	b, err := strconv.ParseBool(src)
-	if err == nil {
-		return b, true
-	}
-	return nil, false
-}
-
-func (p *Variables) Execute(command string) (any, error) {
-	compile, err := expr.Compile(command)
-	if err != nil {
-		return nil, err
-	}
-	return expr.Run(compile, p)
 }

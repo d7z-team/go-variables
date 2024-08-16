@@ -63,7 +63,6 @@ bbb=false
 	assert.NoError(t, properties.Compile())
 	marshal, err := json.Marshal(properties)
 	fmt.Println(string(marshal), err)
-	execute, err := properties.Execute("bbb")
+	_, err = properties.Execute("bbb")
 	assert.NoError(t, err)
-	fmt.Printf("%+v\n", execute)
 }
