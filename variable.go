@@ -22,7 +22,7 @@ func NewVariables() Variables {
 
 func (p *Variables) Template() VariablesTemplate {
 	return func(data string) (string, error) {
-		parse, err := template.New("tmpl").Funcs(sprig.FuncMap()).Parse(data)
+		parse, err := template.New("tmpl").Funcs(sprig.FuncMap()).Option("missingkey=error").Parse(data)
 		if err != nil {
 			return "", err
 		}
