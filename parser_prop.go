@@ -10,7 +10,7 @@ func (p *Variables) FromProperties(src string) error {
 	lines := strings.Split(src, "\n")
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
-		if strings.TrimSpace(line) == "" {
+		if strings.TrimSpace(line) == "" || strings.TrimSpace(line)[0] == '#' {
 			continue
 		}
 		key, value, found := strings.Cut(line, "=")
