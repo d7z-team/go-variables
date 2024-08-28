@@ -10,9 +10,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Variables map[string]any
-type VariablesArray []Variables
-type VariablesArrayValue []string
+type (
+	Variables           map[string]any
+	VariablesArray      []Variables
+	VariablesArrayValue []string
+)
 
 type VariablesTemplate func(string) (string, error)
 
@@ -42,6 +44,7 @@ func (p *Variables) SetP(key string, value string) {
 		panic(err)
 	}
 }
+
 func (p *Variables) Set(key string, value string) error {
 	data, err := p.Template()(value)
 	if err != nil {
@@ -54,6 +57,7 @@ func (p *Variables) setEnd(key string, value string) error {
 	(*p)[key] = value
 	return nil
 }
+
 func (p *VariablesArray) setEnd(index int, key []string, value string) error {
 	if index == -1 {
 		next := NewVariables()
@@ -122,7 +126,6 @@ func (p *Variables) setMap(key []string, value string) error {
 		variables, ok := (*p)[key[0]].(*Variables)
 		if !ok {
 			return errors.Errorf("节点 %s 无法被分配", key[0])
-
 		}
 		return variables.setMap(key[1:], value)
 	} else {

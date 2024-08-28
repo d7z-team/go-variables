@@ -24,7 +24,7 @@ func (p *Variables) Compile() error {
 			}
 		case *VariablesArrayValue:
 			var target string
-			var dst = make([]any, 0)
+			dst := make([]any, 0)
 			for _, variables := range *value.(*VariablesArrayValue) {
 				a, b := covertType(variables)
 				if !b {

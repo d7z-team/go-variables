@@ -6,7 +6,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (p *Variables) FromProperties(src string) error {
+func (p *Variables) FromProperties(src, namespace string) error {
+	if namespace != "" {
+		namespace = strings.Trim(namespace, ".") + "."
+	}
 	lines := strings.Split(src, "\n")
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
@@ -22,7 +25,7 @@ func (p *Variables) FromProperties(src string) error {
 			value = value[:len(value)-1] + lines[i]
 		}
 		value = strings.ReplaceAll(value, "\\n", "\n")
-		if err := p.Set(key, value); err != nil {
+		if err := p.Set(namespace+key, value); err != nil {
 			return errors.Wrapf(err, "properties 格式错误，位于 %d 行", i)
 		}
 	}

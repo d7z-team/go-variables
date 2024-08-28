@@ -10,7 +10,7 @@ import (
 
 func assertProp(t *testing.T, data, props string) {
 	pr := NewVariables()
-	assert.NoError(t, pr.FromProperties(props))
+	assert.NoError(t, pr.FromProperties(props, ""))
 	target, _ := json.Marshal(pr)
 	assert.Equal(t, data, string(target))
 }
@@ -59,7 +59,7 @@ bar=2
 aaa=true
 bbb=false
 
-`))
+`, ""))
 	assert.NoError(t, properties.Compile())
 	marshal, err := json.Marshal(properties)
 	fmt.Println(string(marshal), err)

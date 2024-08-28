@@ -1,0 +1,16 @@
+name: Package Release Build
+on:
+  push:
+    branches:
+      - main
+jobs:
+  NightTest:
+    runs-on: "rocky"
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - id: mirrors
+        name: Use Toolbox Setup
+        uses: actions/mirrors-setup@v1
+      - name: Test
+        run: make test
