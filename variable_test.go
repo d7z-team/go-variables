@@ -66,3 +66,15 @@ bbb=false
 	_, err = properties.Execute("bbb")
 	assert.NoError(t, err)
 }
+
+func TestOverride(t *testing.T) {
+	assertProp(t, `{"foo":["bar2"]}`, `
+foo.0=bar1
+foo.0=bar2
+`)
+
+	assertProp(t, `{"foo":"1"}`, `
+foo=2
+foo=1
+`)
+}

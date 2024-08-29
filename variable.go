@@ -125,7 +125,7 @@ func (p *Variables) setMap(key []string, value string) error {
 	if err != nil {
 		variables, ok := (*p)[key[0]].(*Variables)
 		if !ok {
-			return errors.Errorf("节点 %s 无法被分配", key[0])
+			return errors.Errorf("节点 %s 无法被分配,此节点不是 map", key[0])
 		}
 		return variables.setMap(key[1:], value)
 	} else {
