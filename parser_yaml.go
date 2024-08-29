@@ -2,11 +2,18 @@ package variables
 
 import (
 	"fmt"
-	"github.com/goccy/go-yaml"
 	"strings"
+
+	"github.com/goccy/go-yaml"
 )
 
 func (p *Variables) FromYaml(src, namespace string) error {
+	return p.FromYamlFilter(src, namespace, func(key string) bool {
+		return true
+	})
+}
+
+func (p *Variables) FromYamlFilter(src, namespace string, filter func(key string) bool) error {
 	data := make(yaml.MapSlice, 0)
 
 	err := yaml.UnmarshalWithOptions([]byte(src), &data, yaml.UseOrderedMap())
@@ -25,9 +32,10 @@ func (p *Variables) FromYaml(src, namespace string) error {
 		if !found {
 			return fmt.Errorf("variable %s not found", item)
 		}
-		err := p.Set(before, after)
-		if err != nil {
-			return err
+		if filter(before) {
+			if err := p.Set(before, after); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

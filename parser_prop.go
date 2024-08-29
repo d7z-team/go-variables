@@ -7,6 +7,12 @@ import (
 )
 
 func (p *Variables) FromProperties(src, namespace string) error {
+	return p.FromPropertiesFilter(src, namespace, func(key string) bool {
+		return true
+	})
+}
+
+func (p *Variables) FromPropertiesFilter(src, namespace string, filter func(key string) bool) error {
 	if namespace != "" {
 		namespace = strings.Trim(namespace, ".") + "."
 	}
@@ -25,8 +31,10 @@ func (p *Variables) FromProperties(src, namespace string) error {
 			value = value[:len(value)-1] + lines[i]
 		}
 		value = strings.ReplaceAll(value, "\\n", "\n")
-		if err := p.Set(namespace+key, value); err != nil {
-			return errors.Wrapf(err, "properties 格式错误，位于 %d 行", i)
+		if filter(namespace + key) {
+			if err := p.Set(namespace+key, value); err != nil {
+				return errors.Wrapf(err, "properties 格式错误，位于 %d 行", i)
+			}
 		}
 	}
 	return nil
