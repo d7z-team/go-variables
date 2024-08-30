@@ -43,9 +43,9 @@ foo.0=bar2
 }
 
 func TestBigArrayValue(t *testing.T) {
-	assertProp(t, `{"data":["dragon",{"name":"dragon","value":"test"},"bbb"]}`, `
-data.0=dragon
-data.1.name=dragon
+	assertProp(t, `{"data":["foo0",{"name":"foo1","value":"test"},"bbb"]}`, `
+data.0=foo0
+data.1.name=foo1
 data.1.value=test
 data.2=bbb
 `)
