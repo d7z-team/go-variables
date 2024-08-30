@@ -14,6 +14,7 @@ func (p *Variables) FromYaml(src, namespace string) error {
 }
 
 func (p *Variables) FromYamlFilter(src, namespace string, filter func(key string) bool) error {
+	namespace = strings.Trim(namespace, ".")
 	data := make(yaml.MapSlice, 0)
 
 	err := yaml.UnmarshalWithOptions([]byte(src), &data, yaml.UseOrderedMap())
@@ -21,19 +22,17 @@ func (p *Variables) FromYamlFilter(src, namespace string, filter func(key string
 		return err
 	}
 	output := make([]string, 0)
-	for _, datum := range data {
-		err = addItem(&output, namespace, datum)
-		if err != nil {
-			return err
-		}
+	err = addAny(&output, namespace, data)
+	if err != nil {
+		return err
 	}
 	for _, item := range output {
-		before, after, found := strings.Cut(item, "=")
+		key, value, found := strings.Cut(item, "=")
 		if !found {
 			return fmt.Errorf("variable %s not found", item)
 		}
-		if filter(before) {
-			if err := p.Set(before, after); err != nil {
+		if filter(key) {
+			if err := p.Set(key, value); err != nil {
 				return err
 			}
 		}
@@ -41,24 +40,34 @@ func (p *Variables) FromYamlFilter(src, namespace string, filter func(key string
 	return nil
 }
 
-func addItem(dest *[]string, prefix string, node yaml.MapItem) error {
-	key := strings.TrimPrefix(fmt.Sprintf("%s.%s", prefix, node.Key), ".")
-	switch node.Value.(type) {
-	case yaml.MapItem:
-		return addItem(dest, key, node.Value.(yaml.MapItem))
+func keyFormat(prefix string, key any) string {
+	if prefix == "" {
+		return fmt.Sprintf("%v", key)
+	} else {
+		return fmt.Sprintf("%s.%v", prefix, key)
+	}
+}
+
+func addAny(dest *[]string, prefix string, node any) error {
+	switch data := node.(type) {
 	case yaml.MapSlice:
-		for _, datum := range node.Value.(yaml.MapSlice) {
-			err := addItem(dest, key, datum)
-			if err != nil {
+		for _, item := range data {
+			if err := addAny(dest, prefix, item); err != nil {
 				return err
 			}
 		}
+	case yaml.MapItem:
+		if err := addAny(dest, keyFormat(prefix, data.Key), data.Value); err != nil {
+			return err
+		}
 	case []any:
-		for i, data := range node.Value.([]any) {
-			*dest = append(*dest, fmt.Sprintf("%s.%d=%s", key, i, data))
+		for i, item := range data {
+			if err := addAny(dest, keyFormat(prefix, i), item); err != nil {
+				return err
+			}
 		}
 	default:
-		*dest = append(*dest, fmt.Sprintf("%s=%s", key, node.Value))
+		*dest = append(*dest, fmt.Sprintf("%s=%s", prefix, data))
 	}
 	return nil
 }

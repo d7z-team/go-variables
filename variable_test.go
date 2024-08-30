@@ -33,12 +33,21 @@ foo.0=bar1
 foo.1=bar2
 `)
 
-	assertProp(t, `{"foo":["","bar1","bar2"]}`, `
+	assertProp(t, `{"foo":[null,"bar1","bar2"]}`, `
 foo.1=bar1
 foo.-1=bar2`)
 	assertProp(t, `{"foo":["bar2","bar1"]}`, `
 foo.1=bar1
 foo.0=bar2
+`)
+}
+
+func TestBigArrayValue(t *testing.T) {
+	assertProp(t, `{"data":["dragon",{"name":"dragon","value":"test"},"bbb"]}`, `
+data.0=dragon
+data.1.name=dragon
+data.1.value=test
+data.2=bbb
 `)
 }
 
@@ -60,7 +69,6 @@ aaa=true
 bbb=false
 
 `, ""))
-	assert.NoError(t, properties.Compile())
 	marshal, err := json.Marshal(properties)
 	fmt.Println(string(marshal), err)
 	_, err = properties.Execute("bbb")
@@ -73,7 +81,7 @@ foo.0=bar1
 foo.0=bar2
 `)
 
-	assertProp(t, `{"foo":"1"}`, `
+	assertProp(t, `{"foo":1}`, `
 foo=2
 foo=1
 `)
