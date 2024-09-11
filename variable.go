@@ -112,3 +112,7 @@ func setValue(prefix any, keys []any, value any) error {
 	}
 	return nil
 }
+
+func (p *Variables) ToMap() map[string]any {
+	return *p
+}
