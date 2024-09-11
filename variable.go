@@ -171,3 +171,11 @@ func get(prefix any, key []string) (any, bool) {
 	}
 	return nil, false
 }
+
+func (p *Variables) Clone() (Variables, error) {
+	next := NewVariables()
+	if err := next.FromStruct(*p, ""); err != nil {
+		return nil, err
+	}
+	return next, nil
+}
