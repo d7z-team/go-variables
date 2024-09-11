@@ -13,7 +13,10 @@ func toYaml(src any) (string, error) {
 	}
 	v := reflect.ValueOf(src)
 	kind := v.Kind()
-	if kind >= reflect.Bool && kind <= reflect.Complex128 {
+	if kind != reflect.Struct &&
+		kind != reflect.Map &&
+		kind != reflect.Array &&
+		kind != reflect.Slice {
 		return "", errors.Errorf("对象为基础类型 %T", src)
 	}
 	marshal, err := yaml.Marshal(src)
