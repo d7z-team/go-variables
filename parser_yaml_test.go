@@ -62,6 +62,7 @@ func TestVariables_Get(t *testing.T) {
 	err := variables.FromYaml(`
 metadata:
   name: dragon
+  age: false
 data:
  - "{{.metadata.name}}"
  - bbb
@@ -70,6 +71,7 @@ data:
 `, "")
 	assert.NoError(t, err)
 	assert.Equal(t, variables.Get("metadata.name"), "dragon")
+	assert.Equal(t, variables.Get("metadata.age"), false)
 	assert.Equal(t, variables.Get("data.0"), "dragon")
 	assert.Equal(t, variables.Get("data.2.ccc.name"), "data")
 	assert.Equal(t, variables.Get("data.-1"), nil)

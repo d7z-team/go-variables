@@ -67,7 +67,7 @@ func addAny(dest *[]string, prefix string, node any) error {
 			}
 		}
 	default:
-		*dest = append(*dest, fmt.Sprintf("%s=%s", prefix, data))
+		*dest = append(*dest, fmt.Sprintf("%s=%v", prefix, data))
 	}
 	return nil
 }
