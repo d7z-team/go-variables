@@ -135,3 +135,39 @@ func setValue(prefix any, keys []any, value any) error {
 func (p *Variables) ToMap() map[string]any {
 	return *p
 }
+
+func (p *Variables) Get(key string) any {
+	ok, b := p.GetOK(key)
+	if !b {
+		return nil
+	}
+	return ok
+}
+
+func (p *Variables) GetOK(key string) (any, bool) {
+	return get(p.ToMap(), strings.Split(key, "."))
+}
+
+func get(prefix any, key []string) (any, bool) {
+	if len(key) == 0 {
+		return prefix, true
+	}
+	switch child := prefix.(type) {
+	case []any:
+		index, err := strconv.Atoi(key[0])
+		if err != nil {
+			return nil, false
+		}
+		if index < 0 || index >= len(child) {
+			return nil, false
+		}
+		return get(child[index], key[1:])
+	case map[string]any:
+		next, ok := child[key[0]]
+		if !ok {
+			return nil, false
+		}
+		return get(next, key[1:])
+	}
+	return nil, false
+}

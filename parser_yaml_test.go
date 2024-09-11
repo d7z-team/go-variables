@@ -56,3 +56,21 @@ metadata:
 	assert.NoError(t, err)
 	assert.Equal(t, "dragon-1.0.0", s)
 }
+
+func TestVariables_Get(t *testing.T) {
+	variables := NewVariables()
+	err := variables.FromYaml(`
+metadata:
+  name: dragon
+data:
+ - "{{.metadata.name}}"
+ - bbb
+ - ccc:
+    name: "data"
+`, "")
+	assert.NoError(t, err)
+	assert.Equal(t, variables.Get("metadata.name"), "dragon")
+	assert.Equal(t, variables.Get("data.0"), "dragon")
+	assert.Equal(t, variables.Get("data.2.ccc.name"), "data")
+	assert.Equal(t, variables.Get("data.-1"), nil)
+}
