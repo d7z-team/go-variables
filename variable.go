@@ -41,7 +41,7 @@ func (p *Variables) SetAny(key string, value any) error {
 	var tmp map[string]any
 	tmp = *p
 	return setValue(
-		&tmp,
+		tmp,
 		keys,
 		value,
 	)
@@ -51,40 +51,54 @@ func setValue(prefix any, keys []any, value any) error {
 	isLast := len(keys) == 1
 	switch key := keys[0].(type) {
 	case string:
-		if child, ok := prefix.(*map[string]any); ok {
+		if child, ok := prefix.(map[string]any); ok {
 			if isLast {
 				// 结束
-				(*child)[key] = value
+				child[key] = value
 			} else {
 				// 委托下一级
-				if (*child)[key] == nil {
-					switch keys[1].(type) {
-					case int:
-						empty := make([]any, 0)
-						(*child)[key] = &empty
-					case string:
-						empty := make(map[string]any)
-						(*child)[key] = &empty
+				switch keys[1].(type) {
+				case int:
+					current := make([]any, 0)
+					if child[key] != nil {
+						current, ok = child[key].([]any)
+						if !ok {
+							return errors.Errorf("invalid type %T, expected []any", child[key])
+						}
 					}
+					if err := setValue(&current, keys[1:], value); err != nil {
+						return err
+					} else {
+						child[key] = current
+						return nil
+					}
+				case string:
+					current := make(map[string]any)
+					if child[key] != nil {
+						current, ok = child[key].(map[string]any)
+						if !ok {
+							return errors.Errorf("invalid type %T, expected map[string]any", child[key])
+						}
+					}
+					child[key] = current
+					return setValue(current, keys[1:], value)
+				default:
+					return errors.Errorf("未知的 key 类型 %T", keys[1])
 				}
-				next := (*child)[key]
-				return setValue(next, keys[1:], value)
 			}
 		} else {
-			return errors.New("当前无法容纳 map")
+			return errors.Errorf("当前无法容纳 map, key: %t", prefix)
 		}
 	case int:
 		if child, ok := prefix.(*[]any); ok {
 			if key == -1 {
 				// 追加模式
 				if isLast {
-					data := append(*child, value)
-					*child = data
+					*child = append(*child, value)
 				} else {
 					empty := make(map[string]any)
-					data := append(*child, empty)
-					*child = data
-					return setValue(&empty, keys[1:], value)
+					*child = append(*child, empty)
+					return setValue(empty, keys[1:], value)
 				}
 			} else if key >= 0 {
 				if len(*child) <= key {
@@ -98,9 +112,12 @@ func setValue(prefix any, keys []any, value any) error {
 				} else {
 					if (*child)[key] == nil {
 						empty := make(map[string]any)
-						(*child)[key] = &empty
+						(*child)[key] = empty
 					}
 					next := (*child)[key]
+					defer func() {
+						(*child)[key] = next
+					}()
 					return setValue(next, keys[1:], value)
 				}
 			} else {
@@ -109,6 +126,8 @@ func setValue(prefix any, keys []any, value any) error {
 		} else {
 			return errors.New("当然无法容纳 array")
 		}
+	default:
+		return errors.Errorf("未知类型 key: %T", prefix)
 	}
 	return nil
 }
