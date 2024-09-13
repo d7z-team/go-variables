@@ -38,7 +38,9 @@ func exprOptions() []expr.Option {
 				}
 				return result.ToMap(), nil
 			},
-			new(func(map[string]any, map[string]any) map[string]any),
+			new(func(...map[string]any) map[string]any),
+			new(func(...Variables) map[string]any),
+			new(func(...*Variables) map[string]any),
 		),
 	}
 }
