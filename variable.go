@@ -1,7 +1,6 @@
 package variables
 
 import (
-	"github.com/expr-lang/expr"
 	"strconv"
 	"strings"
 
@@ -18,26 +17,20 @@ func NewVariables() Variables {
 
 func (p *Variables) Set(key string, value string) error {
 	var data any
-	var err error
-	trimData := strings.TrimSpace(value)
-	if strings.HasPrefix(trimData, "${{") && strings.HasSuffix(trimData, "}}") {
-		compile, err := expr.Compile(strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimData, "${{"), "}}")))
+	if target, ok, err := p.Expr(value); ok {
 		if err != nil {
 			return err
 		}
-		data, err = expr.Run(compile, p)
-		if err != nil {
-			return err
-		}
+		data = target
 	} else {
-		data, err = p.Template()(value)
+		data, err = p.Template(value)
 		if err != nil {
 			return err
 		}
 	}
 	if it, ok := data.(string); ok {
 		target, ok := covertType(it)
-		if !ok {
+		if ok {
 			data = target
 		}
 	}

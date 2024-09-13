@@ -21,7 +21,7 @@ data:
 `, "")
 
 	assert.NoError(t, err)
-	s, err := variables.Template()("{{index .data 0 }}")
+	s, err := variables.Template("{{index .data 0 }}")
 	assert.NoError(t, err)
 	assert.Equal(t, "dragon", s)
 }
@@ -52,7 +52,7 @@ metadata:
 		return strings.HasPrefix(key, "metadata.")
 	})
 	assert.NoError(t, err)
-	s, err := variables.Template()("{{.metadata.name }}-{{.metadata.version}}")
+	s, err := variables.Template("{{.metadata.name }}-{{.metadata.version}}")
 	assert.NoError(t, err)
 	assert.Equal(t, "dragon-1.0.0", s)
 }
