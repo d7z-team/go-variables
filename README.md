@@ -2,6 +2,9 @@
 
 > 简易的 golang 变量处理工具
 
+## 支持特性
+
+- [x] 处理 properties
 
 ## LICENSE
 

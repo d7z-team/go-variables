@@ -1,6 +1,7 @@
 package variables
 
 import (
+	"encoding/json"
 	"reflect"
 
 	"github.com/goccy/go-yaml"
@@ -39,5 +40,17 @@ func (p *Variables) FromStructFilter(src any, namespace string, filter func(key 
 	if err != nil {
 		return err
 	}
-	return p.FromStructFilter(s, namespace, filter)
+	return p.FromYamlFilter(s, namespace, filter)
+}
+
+func (p *Variables) Unmarshal(namespace string, any any) error {
+	current, exists := p.GetOK(namespace)
+	if !exists {
+		return errors.Errorf("group %s not found", namespace)
+	}
+	binary, err := json.Marshal(current)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(binary, any)
 }
