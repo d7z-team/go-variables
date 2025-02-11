@@ -10,7 +10,7 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
       - id: mirrors
-        name: Use Toolbox Setup
+        name: Use Mirrors Setup
         uses: actions/mirrors-setup@v1
       - name: Test
         run: make test
