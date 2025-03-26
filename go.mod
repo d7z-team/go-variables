@@ -3,11 +3,11 @@ module code.d7z.net/d7z-team/go-variables
 go 1.22
 
 require (
-	github.com/expr-lang/expr v1.16.9
+	github.com/expr-lang/expr v1.17.2
 	github.com/go-task/slim-sprig/v3 v3.0.0
-	github.com/goccy/go-yaml v1.15.19
+	github.com/goccy/go-yaml v1.16.0
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
