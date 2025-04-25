@@ -3,9 +3,23 @@ package variables
 import (
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 )
+
+type ParseValue func(root *Variables, key string, value string) (any, bool, error)
+
+var (
+	parseValues = make([]ParseValue, 0)
+	locker      = new(sync.RWMutex)
+)
+
+func RegisterParseValue(value ...ParseValue) {
+	locker.Lock()
+	defer locker.Unlock()
+	parseValues = append(parseValues, value...)
+}
 
 type (
 	Variables map[string]any // 变量
@@ -16,22 +30,20 @@ func NewVariables() Variables {
 }
 
 func (p *Variables) Set(key string, value string) error {
-	var data any
-	if target, ok, err := p.Expr(value); ok {
-		if err != nil {
-			return err
-		}
-		data = target
-	} else {
-		data, err = p.Template(value)
-		if err != nil {
-			return err
-		}
-	}
-	if it, ok := data.(string); ok {
-		target, ok := covertType(it)
-		if ok {
-			data = target
+	var data any = value
+	locker.RLock()
+	defer locker.RUnlock()
+	for _, f := range parseValues {
+		if val, ok := data.(string); ok {
+			rel, mOk, err := f(p, key, val)
+			if err != nil {
+				return err
+			}
+			if mOk {
+				data = rel
+			}
+		} else {
+			break
 		}
 	}
 	return p.SetAny(key, data)
