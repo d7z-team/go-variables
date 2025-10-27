@@ -51,7 +51,7 @@ func (p *Variables) Set(key string, value string) error {
 
 func (p *Variables) SetAny(key string, value any) error {
 	keys := make([]any, 0, len(*p))
-	for _, s := range strings.Split(key, ".") {
+	for _, s := range parseKey(key) {
 		index, err := strconv.Atoi(s)
 		if err != nil {
 			keys = append(keys, s)
@@ -166,7 +166,11 @@ func (p *Variables) Get(key string) any {
 }
 
 func (p *Variables) GetOK(key string) (any, bool) {
-	return get(p.ToMap(), strings.Split(key, "."))
+	return get(p.ToMap(), parseKey(key))
+}
+
+func parseKey(key string) []string {
+	return strings.Split(key, ".")
 }
 
 func get(prefix any, key []string) (any, bool) {
