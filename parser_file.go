@@ -22,6 +22,8 @@ func (p *Variables) FromFileFilter(file, namespace string, filter func(string) b
 	switch filepath.Ext(file) {
 	case ".yml", ".yaml":
 		return p.FromYamlFilter(string(data), namespace, filter)
+	case ".xml":
+		return p.FromXMLFilter(string(data), namespace, filter)
 	case ".prop", ".properties":
 		return p.FromPropertiesFilter(string(data), namespace, filter)
 	}
