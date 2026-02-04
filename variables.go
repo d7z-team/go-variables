@@ -222,9 +222,32 @@ func get(prefix any, key []string) (any, bool) {
 }
 
 func (p *Variables) Clone() (Variables, error) {
-	next := NewVariables()
-	if err := next.FromStruct(*p, ""); err != nil {
-		return nil, err
+	return deepCloneMap(*p), nil
+}
+
+func deepCloneMap(src map[string]any) map[string]any {
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		dst[k] = deepCloneAny(v)
 	}
-	return next, nil
+	return dst
+}
+
+func deepCloneSlice(src []any) []any {
+	dst := make([]any, len(src))
+	for i, v := range src {
+		dst[i] = deepCloneAny(v)
+	}
+	return dst
+}
+
+func deepCloneAny(src any) any {
+	switch v := src.(type) {
+	case map[string]any:
+		return deepCloneMap(v)
+	case []any:
+		return deepCloneSlice(v)
+	default:
+		return v
+	}
 }
