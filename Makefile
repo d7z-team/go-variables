@@ -3,7 +3,7 @@ GOPATH := $(shell go env GOPATH)
 
 fmt:
 	@(test -f "$(GOPATH)/bin/gofumpt" || go install mvdan.cc/gofumpt@latest) && \
-	"$(GOPATH)/bin/gofumpt" -l -w .
+	"$(GOPATH)/bin/gofumpt" -l -w . && go mod tidy
 
 test:
 	@go test ./...
