@@ -3,9 +3,9 @@ module gopkg.d7z.net/go-variables
 go 1.22
 
 require (
-	github.com/expr-lang/expr v1.17.6
+	github.com/expr-lang/expr v1.17.7
 	github.com/go-task/slim-sprig/v3 v3.0.0
-	github.com/goccy/go-yaml v1.18.0
+	github.com/goccy/go-yaml v1.19.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 )

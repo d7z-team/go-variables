@@ -117,9 +117,22 @@ func setValue(prefix any, keys []any, value any) error {
 				if isLast {
 					*child = append(*child, value)
 				} else {
-					empty := make(map[string]any)
-					*child = append(*child, empty)
-					return setValue(empty, keys[1:], value)
+					var next any
+					switch keys[1].(type) {
+					case int:
+						next = make([]any, 0)
+					default:
+						next = make(map[string]any)
+					}
+					*child = append(*child, next)
+					if asSlice, ok := next.([]any); ok {
+						if err := setValue(&asSlice, keys[1:], value); err != nil {
+							return err
+						}
+						(*child)[len(*child)-1] = asSlice
+						return nil
+					}
+					return setValue(next, keys[1:], value)
 				}
 			} else if key >= 0 {
 				if len(*child) <= key {
@@ -132,10 +145,21 @@ func setValue(prefix any, keys []any, value any) error {
 					(*child)[key] = value
 				} else {
 					if (*child)[key] == nil {
-						empty := make(map[string]any)
-						(*child)[key] = empty
+						switch keys[1].(type) {
+						case int:
+							(*child)[key] = make([]any, 0)
+						default:
+							(*child)[key] = make(map[string]any)
+						}
 					}
 					next := (*child)[key]
+					if asSlice, ok := next.([]any); ok {
+						if err := setValue(&asSlice, keys[1:], value); err != nil {
+							return err
+						}
+						(*child)[key] = asSlice
+						return nil
+					}
 					defer func() {
 						(*child)[key] = next
 					}()
