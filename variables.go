@@ -21,6 +21,10 @@ func RegisterParseValue(value ...ParseValue) {
 	parseValues = append(parseValues, value...)
 }
 
+func ClearParseValue() {
+	clear(parseValues)
+}
+
 type (
 	Variables map[string]any // 变量
 )
