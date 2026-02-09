@@ -22,7 +22,9 @@ func RegisterParseValue(value ...ParseValue) {
 }
 
 func ClearParseValue() {
-	clear(parseValues)
+	locker.Lock()
+	defer locker.Unlock()
+	parseValues = make([]ParseValue, 0)
 }
 
 type (
