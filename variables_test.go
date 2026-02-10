@@ -65,7 +65,7 @@ g.1={{index .g 0}}
 g.2=1
 foo=1
 bar=2
-aaa=true
+	aaa=true
 bbb=false
 
 `, ""))

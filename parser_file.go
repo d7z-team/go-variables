@@ -24,6 +24,8 @@ func (p *Variables) FromFileFilter(file, namespace string, filter func(string) b
 		return p.FromYamlFilter(string(data), namespace, filter)
 	case ".xml":
 		return p.FromXMLFilter(string(data), namespace, filter)
+	case ".json":
+		return p.FromJsonFilter(string(data), namespace, filter)
 	case ".prop", ".properties":
 		return p.FromPropertiesFilter(string(data), namespace, filter)
 	}

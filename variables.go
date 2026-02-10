@@ -13,6 +13,9 @@ type ParseValue func(root *Variables, key string, value string) (any, bool, erro
 var (
 	parseValues = make([]ParseValue, 0)
 	locker      = new(sync.RWMutex)
+	// global lock for all Variables operations to ensure thread safety
+	// since we want to keep Variables as a map for compatibility with templates/expr
+	globalMu sync.RWMutex
 )
 
 func RegisterParseValue(value ...ParseValue) {
@@ -38,8 +41,11 @@ func NewVariables() Variables {
 func (p *Variables) Set(key string, value string) error {
 	var data any = value
 	locker.RLock()
-	defer locker.RUnlock()
-	for _, f := range parseValues {
+	parseValuesCopy := make([]ParseValue, len(parseValues))
+	copy(parseValuesCopy, parseValues)
+	locker.RUnlock()
+
+	for _, f := range parseValuesCopy {
 		if val, ok := data.(string); ok {
 			rel, mOk, err := f(p, key, val)
 			if err != nil {
@@ -56,7 +62,10 @@ func (p *Variables) Set(key string, value string) error {
 }
 
 func (p *Variables) SetAny(key string, value any) error {
-	keys := make([]any, 0, len(*p))
+	globalMu.Lock()
+	defer globalMu.Unlock()
+
+	keys := make([]any, 0)
 	for _, s := range parseKey(key) {
 		index, err := strconv.Atoi(s)
 		if err != nil {
@@ -65,10 +74,8 @@ func (p *Variables) SetAny(key string, value any) error {
 			keys = append(keys, index)
 		}
 	}
-	var tmp map[string]any
-	tmp = *p
 	return setValue(
-		tmp,
+		map[string]any(*p),
 		keys,
 		value,
 	)
@@ -86,12 +93,14 @@ func setValue(prefix any, keys []any, value any) error {
 				// 委托下一级
 				switch keys[1].(type) {
 				case int:
-					current := make([]any, 0)
+					var current []any
 					if child[key] != nil {
 						current, ok = child[key].([]any)
 						if !ok {
 							return errors.Errorf("invalid type %T, expected []any", child[key])
 						}
+					} else {
+						current = make([]any, 0)
 					}
 					if err := setValue(&current, keys[1:], value); err != nil {
 						return err
@@ -100,12 +109,14 @@ func setValue(prefix any, keys []any, value any) error {
 						return nil
 					}
 				case string:
-					current := make(map[string]any)
+					var current map[string]any
 					if child[key] != nil {
 						current, ok = child[key].(map[string]any)
 						if !ok {
 							return errors.Errorf("invalid type %T, expected map[string]any", child[key])
 						}
+					} else {
+						current = make(map[string]any)
 					}
 					child[key] = current
 					return setValue(current, keys[1:], value)
@@ -166,9 +177,6 @@ func setValue(prefix any, keys []any, value any) error {
 						(*child)[key] = asSlice
 						return nil
 					}
-					defer func() {
-						(*child)[key] = next
-					}()
 					return setValue(next, keys[1:], value)
 				}
 			} else {
@@ -184,6 +192,8 @@ func setValue(prefix any, keys []any, value any) error {
 }
 
 func (p *Variables) ToMap() map[string]any {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
 	return *p
 }
 
@@ -196,10 +206,15 @@ func (p *Variables) Get(key string) any {
 }
 
 func (p *Variables) GetOK(key string) (any, bool) {
-	return get(p.ToMap(), parseKey(key))
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+	return get(map[string]any(*p), parseKey(key))
 }
 
 func parseKey(key string) []string {
+	if key == "" {
+		return []string{""}
+	}
 	return strings.Split(key, ".")
 }
 
@@ -207,11 +222,17 @@ func get(prefix any, key []string) (any, bool) {
 	if len(key) == 0 {
 		return prefix, true
 	}
+	if key[0] == "" {
+		return get(prefix, key[1:])
+	}
 	switch child := prefix.(type) {
 	case []any:
 		index, err := strconv.Atoi(key[0])
 		if err != nil {
 			return nil, false
+		}
+		if index == -1 {
+			index = len(child) - 1
 		}
 		if index < 0 || index >= len(child) {
 			return nil, false
@@ -228,6 +249,8 @@ func get(prefix any, key []string) (any, bool) {
 }
 
 func (p *Variables) Clone() (Variables, error) {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
 	return deepCloneMap(*p), nil
 }
 

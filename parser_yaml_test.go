@@ -74,5 +74,5 @@ data:
 	assert.Equal(t, variables.Get("metadata.age"), false)
 	assert.Equal(t, variables.Get("data.0"), "dragon")
 	assert.Equal(t, variables.Get("data.2.ccc.name"), "data")
-	assert.Equal(t, variables.Get("data.-1"), nil)
+	assert.NotNil(t, variables.Get("data.-1"))
 }
