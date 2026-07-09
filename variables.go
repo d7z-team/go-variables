@@ -1,282 +1,272 @@
 package variables
 
 import (
-	"strconv"
-	"strings"
+	"encoding/json"
+	"errors"
 	"sync"
-
-	"github.com/pkg/errors"
 )
-
-type ParseValue func(root *Variables, key string, value string) (any, bool, error)
 
 var (
-	parseValues = make([]ParseValue, 0)
-	locker      = new(sync.RWMutex)
-	// global lock for all Variables operations to ensure thread safety
-	// since we want to keep Variables as a map for compatibility with templates/expr
-	globalMu sync.RWMutex
+	ErrNotFound          = errors.New("not found")
+	ErrTypeConflict      = errors.New("type conflict")
+	ErrInvalidPath       = errors.New("invalid path")
+	ErrIndexOutOfRange   = errors.New("index out of range")
+	ErrUnsupportedFormat = errors.New("unsupported format")
+	ErrCycleDetected     = errors.New("cycle detected")
 )
 
-func RegisterParseValue(value ...ParseValue) {
-	locker.Lock()
-	defer locker.Unlock()
-	parseValues = append(parseValues, value...)
+type Variables struct {
+	mu   sync.RWMutex
+	root Value
+	opts options
 }
 
-func ClearParseValue() {
-	locker.Lock()
-	defer locker.Unlock()
-	parseValues = make([]ParseValue, 0)
-}
-
-type (
-	Variables map[string]any // 变量
-)
-
-func NewVariables() Variables {
-	return make(map[string]any)
-}
-
-func (p *Variables) Set(key string, value string) error {
-	var data any = value
-	locker.RLock()
-	parseValuesCopy := make([]ParseValue, len(parseValues))
-	copy(parseValuesCopy, parseValues)
-	locker.RUnlock()
-
-	for _, f := range parseValuesCopy {
-		if val, ok := data.(string); ok {
-			rel, mOk, err := f(p, key, val)
-			if err != nil {
-				return err
-			}
-			if mOk {
-				data = rel
-			}
-		} else {
-			break
-		}
+func New(opts ...Option) *Variables {
+	v := &Variables{
+		root: Object(map[string]Value{}),
+		opts: defaultOptions(),
 	}
-	return p.SetAny(key, data)
-}
-
-func (p *Variables) SetAny(key string, value any) error {
-	globalMu.Lock()
-	defer globalMu.Unlock()
-
-	keys := make([]any, 0)
-	for _, s := range parseKey(key) {
-		index, err := strconv.Atoi(s)
-		if err != nil {
-			keys = append(keys, s)
-		} else {
-			keys = append(keys, index)
-		}
+	for _, opt := range opts {
+		opt(&v.opts)
 	}
-	return setValue(
-		map[string]any(*p),
-		keys,
-		value,
-	)
+	return v
 }
 
-func setValue(prefix any, keys []any, value any) error {
-	isLast := len(keys) == 1
-	switch key := keys[0].(type) {
-	case string:
-		if child, ok := prefix.(map[string]any); ok {
-			if isLast {
-				// 结束
-				child[key] = value
-			} else {
-				// 委托下一级
-				switch keys[1].(type) {
-				case int:
-					var current []any
-					if child[key] != nil {
-						current, ok = child[key].([]any)
-						if !ok {
-							return errors.Errorf("invalid type %T, expected []any", child[key])
-						}
-					} else {
-						current = make([]any, 0)
-					}
-					if err := setValue(&current, keys[1:], value); err != nil {
-						return err
-					} else {
-						child[key] = current
-						return nil
-					}
-				case string:
-					var current map[string]any
-					if child[key] != nil {
-						current, ok = child[key].(map[string]any)
-						if !ok {
-							return errors.Errorf("invalid type %T, expected map[string]any", child[key])
-						}
-					} else {
-						current = make(map[string]any)
-					}
-					child[key] = current
-					return setValue(current, keys[1:], value)
-				default:
-					return errors.Errorf("未知的 key 类型 %T", keys[1])
-				}
-			}
-		} else {
-			return errors.Errorf("当前无法容纳 map, key: %t", prefix)
-		}
-	case int:
-		if child, ok := prefix.(*[]any); ok {
-			if key == -1 {
-				// 追加模式
-				if isLast {
-					*child = append(*child, value)
-				} else {
-					var next any
-					switch keys[1].(type) {
-					case int:
-						next = make([]any, 0)
-					default:
-						next = make(map[string]any)
-					}
-					*child = append(*child, next)
-					if asSlice, ok := next.([]any); ok {
-						if err := setValue(&asSlice, keys[1:], value); err != nil {
-							return err
-						}
-						(*child)[len(*child)-1] = asSlice
-						return nil
-					}
-					return setValue(next, keys[1:], value)
-				}
-			} else if key >= 0 {
-				if len(*child) <= key {
-					// 处理长度不够的问题
-					nextVar := make([]any, key+1)
-					copy(nextVar, *child)
-					*child = nextVar
-				}
-				if isLast {
-					(*child)[key] = value
-				} else {
-					if (*child)[key] == nil {
-						switch keys[1].(type) {
-						case int:
-							(*child)[key] = make([]any, 0)
-						default:
-							(*child)[key] = make(map[string]any)
-						}
-					}
-					next := (*child)[key]
-					if asSlice, ok := next.([]any); ok {
-						if err := setValue(&asSlice, keys[1:], value); err != nil {
-							return err
-						}
-						(*child)[key] = asSlice
-						return nil
-					}
-					return setValue(next, keys[1:], value)
-				}
-			} else {
-				return errors.New("错误的 index")
-			}
-		} else {
-			return errors.New("当然无法容纳 array")
-		}
-	default:
-		return errors.Errorf("未知类型 key: %T", prefix)
+func (v *Variables) Clone(opts ...Option) *Variables {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	cloned := &Variables{
+		root: v.root.Clone(),
+		opts: v.opts.clone(),
+	}
+	for _, opt := range opts {
+		opt(&cloned.opts)
+	}
+	return cloned
+}
+
+func (v *Variables) Set(path Path, value any) error {
+	encoded, err := EncodeValue(value)
+	if err != nil {
+		return &PathError{Op: "set", Path: path, Err: err}
+	}
+	return v.SetValue(path, encoded)
+}
+
+func (v *Variables) SetValue(path Path, value Value) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	if path.IsRoot() {
+		v.root = value.Clone()
+		return nil
+	}
+	if err := setAt(&v.root, path, value.Clone()); err != nil {
+		return &PathError{Op: "set", Path: path, Err: err}
 	}
 	return nil
 }
 
-func (p *Variables) ToMap() map[string]any {
-	globalMu.RLock()
-	defer globalMu.RUnlock()
-	return *p
+func (v *Variables) Append(path Path, value any) error {
+	encoded, err := EncodeValue(value)
+	if err != nil {
+		return &PathError{Op: "append", Path: path, Err: err}
+	}
+	return v.AppendValue(path, encoded)
 }
 
-func (p *Variables) Get(key string) any {
-	ok, b := p.GetOK(key)
-	if !b {
+func (v *Variables) AppendValue(path Path, value Value) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	target, ok := getAt(v.root, path)
+	if !ok {
+		return &PathError{Op: "append", Path: path, Err: ErrNotFound}
+	}
+	if target.kind != ArrayValue {
+		return &PathError{Op: "append", Path: path, Err: ErrTypeConflict}
+	}
+	items := append(append([]Value(nil), target.arr...), value.Clone())
+	if path.IsRoot() {
+		v.root = Value{kind: ArrayValue, arr: items}
 		return nil
 	}
-	return ok
+	if err := setAt(&v.root, path, Value{kind: ArrayValue, arr: items}); err != nil {
+		return &PathError{Op: "append", Path: path, Err: err}
+	}
+	return nil
 }
 
-func (p *Variables) GetOK(key string) (any, bool) {
-	globalMu.RLock()
-	defer globalMu.RUnlock()
-	return get(map[string]any(*p), parseKey(key))
+func (v *Variables) Get(path Path) (any, bool) {
+	value, ok := v.GetValue(path)
+	if !ok {
+		return nil, false
+	}
+	return DecodeValue(value), true
 }
 
-func parseKey(key string) []string {
-	if key == "" {
-		return []string{""}
+func (v *Variables) GetValue(path Path) (Value, bool) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	value, ok := getAt(v.root, path)
+	if !ok {
+		return Value{}, false
 	}
-	return strings.Split(key, ".")
+	return value.Clone(), true
 }
 
-func get(prefix any, key []string) (any, bool) {
-	if len(key) == 0 {
-		return prefix, true
+func (v *Variables) Delete(path Path) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	if path.IsRoot() {
+		v.root = Object(map[string]Value{})
+		return nil
 	}
-	if key[0] == "" {
-		return get(prefix, key[1:])
+	if err := deleteAt(&v.root, path); err != nil {
+		return &PathError{Op: "delete", Path: path, Err: err}
 	}
-	switch child := prefix.(type) {
-	case []any:
-		index, err := strconv.Atoi(key[0])
-		if err != nil {
-			return nil, false
+	return nil
+}
+
+func (v *Variables) Snapshot() any {
+	return DecodeValue(v.SnapshotValue())
+}
+
+func (v *Variables) SnapshotValue() Value {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.root.Clone()
+}
+
+func (v *Variables) Decode(path Path, dst any) error {
+	value, ok := v.GetValue(path)
+	if !ok {
+		return &PathError{Op: "decode", Path: path, Err: ErrNotFound}
+	}
+	data, err := json.Marshal(JSONValue(value))
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, dst)
+}
+
+func setAt(node *Value, path Path, value Value) error {
+	seg := path[0]
+	last := len(path) == 1
+	switch seg.kind {
+	case SegmentKey:
+		if node.kind != ObjectValue {
+			return ErrTypeConflict
 		}
-		if index == -1 {
-			index = len(child) - 1
+		if node.obj == nil {
+			node.obj = map[string]Value{}
 		}
-		if index < 0 || index >= len(child) {
-			return nil, false
+		if last {
+			node.obj[seg.key] = value
+			return nil
 		}
-		return get(child[index], key[1:])
-	case map[string]any:
-		next, ok := child[key[0]]
-		if !ok {
-			return nil, false
+		child, ok := node.obj[seg.key]
+		if !ok || child.kind == NullValue {
+			child = newContainer(path[1])
 		}
-		return get(next, key[1:])
-	}
-	return nil, false
-}
-
-func (p *Variables) Clone() (Variables, error) {
-	globalMu.RLock()
-	defer globalMu.RUnlock()
-	return deepCloneMap(*p), nil
-}
-
-func deepCloneMap(src map[string]any) map[string]any {
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = deepCloneAny(v)
-	}
-	return dst
-}
-
-func deepCloneSlice(src []any) []any {
-	dst := make([]any, len(src))
-	for i, v := range src {
-		dst[i] = deepCloneAny(v)
-	}
-	return dst
-}
-
-func deepCloneAny(src any) any {
-	switch v := src.(type) {
-	case map[string]any:
-		return deepCloneMap(v)
-	case []any:
-		return deepCloneSlice(v)
+		if err := setAt(&child, path[1:], value); err != nil {
+			return err
+		}
+		node.obj[seg.key] = child
+		return nil
+	case SegmentIndex:
+		if seg.index < 0 {
+			return ErrIndexOutOfRange
+		}
+		if node.kind != ArrayValue {
+			return ErrTypeConflict
+		}
+		for len(node.arr) <= seg.index {
+			node.arr = append(node.arr, Null())
+		}
+		if last {
+			node.arr[seg.index] = value
+			return nil
+		}
+		child := node.arr[seg.index]
+		if child.kind == NullValue {
+			child = newContainer(path[1])
+		}
+		if err := setAt(&child, path[1:], value); err != nil {
+			return err
+		}
+		node.arr[seg.index] = child
+		return nil
 	default:
-		return v
+		return ErrInvalidPath
 	}
+}
+
+func getAt(root Value, path Path) (Value, bool) {
+	current := root
+	for _, seg := range path {
+		switch seg.kind {
+		case SegmentKey:
+			if current.kind != ObjectValue {
+				return Value{}, false
+			}
+			next, ok := current.obj[seg.key]
+			if !ok {
+				return Value{}, false
+			}
+			current = next
+		case SegmentIndex:
+			if current.kind != ArrayValue || seg.index < 0 || seg.index >= len(current.arr) {
+				return Value{}, false
+			}
+			current = current.arr[seg.index]
+		default:
+			return Value{}, false
+		}
+	}
+	return current, true
+}
+
+func deleteAt(root *Value, path Path) error {
+	parentPath := path[:len(path)-1]
+	leaf := path[len(path)-1]
+	parent, ok := getAt(*root, parentPath)
+	if !ok {
+		return ErrNotFound
+	}
+	switch leaf.kind {
+	case SegmentKey:
+		if parent.kind != ObjectValue {
+			return ErrTypeConflict
+		}
+		if _, ok := parent.obj[leaf.key]; !ok {
+			return ErrNotFound
+		}
+		delete(parent.obj, leaf.key)
+	case SegmentIndex:
+		if parent.kind != ArrayValue {
+			return ErrTypeConflict
+		}
+		if leaf.index < 0 || leaf.index >= len(parent.arr) {
+			return ErrIndexOutOfRange
+		}
+		parent.arr[leaf.index] = Null()
+	default:
+		return ErrInvalidPath
+	}
+	if parentPath.IsRoot() {
+		*root = parent
+		return nil
+	}
+	return setAt(root, parentPath, parent)
+}
+
+func newContainer(next Segment) Value {
+	if next.kind == SegmentIndex {
+		return Value{kind: ArrayValue, arr: []Value{}}
+	}
+	return Object(map[string]Value{})
 }

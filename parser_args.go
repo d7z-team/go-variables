@@ -1,29 +1,30 @@
 package variables
 
 import (
+	"fmt"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
-func (p *Variables) FromArgs(src []string) error {
-	return p.FromArgsFilter(src, func(key string) bool {
-		return true
-	})
-}
+func (v *Variables) LoadArgs(args []string, opts ...LoadOption) error {
+	cfg := newLoadOptions(opts)
 
-func (p *Variables) FromArgsFilter(src []string, filter func(key string) bool) error {
-	for _, arg := range src {
-		key, value, found := strings.Cut(arg, "=")
-		if !filter(key) {
-			continue
+	root := map[string]any{}
+	for _, arg := range args {
+		key, raw, ok := strings.Cut(arg, "=")
+		if !ok {
+			return fmt.Errorf("args: expected key=value, got %q", arg)
 		}
-		if !found {
-			return errors.Errorf("格式错误: %s", arg)
+		path, err := ParsePath(key)
+		if err != nil {
+			return err
 		}
-		if err := p.Set(key, value); err != nil {
-			return errors.Wrapf(err, "插入错误: %v", arg)
+		value := any(raw)
+		if cfg.inferScalars {
+			value = inferScalar(raw)
+		}
+		if err := setAtAny(root, path, value); err != nil {
+			return &PathError{Op: "load args", Path: path, Err: err}
 		}
 	}
-	return nil
+	return v.loadValue(root, cfg)
 }

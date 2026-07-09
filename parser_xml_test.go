@@ -1,46 +1,51 @@
 package variables
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFromXML(t *testing.T) {
-	v := NewVariables()
-	xmlData := `
+func TestLoadXMLMapsAttributesTextAndRepeatedElements(t *testing.T) {
+	v := New()
+	require.NoError(t, v.Load(strings.NewReader(`
 <root>
-    <key>value</key>
-    <nested>
-        <item id="1">val1</item>
-        <item id="2">val2</item>
-    </nested>
-    <list>a</list>
-    <list>b</list>
-</root>`
+  <item id="1">first</item>
+  <item id="2">second</item>
+  <single enabled="true">
+    <name>demo</name>
+  </single>
+</root>`), FormatXML))
 
-	err := v.FromXML(xmlData, "")
-	assert.NoError(t, err)
-
-	// Check simple value
-	assert.Equal(t, "value", v.Get("root.key"))
-	assert.Equal(t, "value", v.Get("root.key"))
-
-	// Check list (mxj might handle repeated elements as list)
-	// <list>a</list><list>b</list> -> list: ["a", "b"]
-	assert.Equal(t, "a", v.Get("root.list.0"))
-	assert.Equal(t, "b", v.Get("root.list.1"))
-
-	// Check nested with attributes
-	// <item id="1">val1</item> -> item: {"-id": "1", "#text": "val1"}
-	// But since there are two <item>, it becomes a list of objects.
-
-	val1Text := v.Get("root.nested.item.0.#text")
-	if val1Text == nil {
-		// Maybe mxj structure is different?
-		// Let's inspect what we got if it fails.
-	} else {
-		assert.Equal(t, "val1", val1Text)
-		assert.Equal(t, 1, v.Get("root.nested.item.0.-id"))
+	tests := []struct {
+		path string
+		want any
+	}{
+		{path: `root.item[0].@id`, want: "1"},
+		{path: `root.item[0].#text`, want: "first"},
+		{path: `root.item[1].@id`, want: "2"},
+		{path: `root.item[1].#text`, want: "second"},
+		{path: `root.single.@enabled`, want: "true"},
+		{path: `root.single.name`, want: "demo"},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got, ok := v.Get(MustPath(tt.path))
+			require.True(t, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestLoadXMLWithPrefixAndInvalidXML(t *testing.T) {
+	v := New()
+	require.NoError(t, v.Load(strings.NewReader(`<root><name>demo</name></root>`), FormatXML, WithPrefix(MustPath("doc"))))
+	value, ok := v.Get(MustPath("doc.root.name"))
+	require.True(t, ok)
+	require.Equal(t, "demo", value)
+
+	err := v.Load(strings.NewReader(`<root>`), FormatXML)
+	require.Error(t, err)
 }

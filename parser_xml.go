@@ -1,60 +1,41 @@
 package variables
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/clbanning/mxj/v2"
 )
 
-func (p *Variables) FromXML(src, namespace string) error {
-	return p.FromXMLFilter(src, namespace, func(key string) bool {
-		return true
-	})
+func decodeXML(data []byte) (any, error) {
+	mv, err := mxj.NewMapXml(data)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeXML(map[string]any(mv)), nil
 }
 
-func (p *Variables) FromXMLFilter(src, namespace string, filter func(key string) bool) error {
-	namespace = strings.Trim(namespace, ".")
-	mv, err := mxj.NewMapXml([]byte(src))
-	if err != nil {
-		return err
-	}
-
-	output := make([]string, 0)
-	err = addAnyMap(&output, namespace, map[string]any(mv))
-	if err != nil {
-		return err
-	}
-	for _, item := range output {
-		key, value, found := strings.Cut(item, "=")
-		if !found {
-			return fmt.Errorf("variable %s not found", item)
-		}
-		if filter(key) {
-			if err := p.Set(key, value); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func addAnyMap(dest *[]string, prefix string, node any) error {
-	switch data := node.(type) {
+func normalizeXML(src any) any {
+	switch value := src.(type) {
 	case map[string]any:
-		for k, v := range data {
-			if err := addAnyMap(dest, keyFormat(prefix, k), v); err != nil {
-				return err
-			}
+		out := make(map[string]any, len(value))
+		for key, child := range value {
+			out[xmlKey(key)] = normalizeXML(child)
 		}
+		return out
 	case []any:
-		for i, item := range data {
-			if err := addAnyMap(dest, keyFormat(prefix, i), item); err != nil {
-				return err
-			}
+		out := make([]any, len(value))
+		for i, child := range value {
+			out[i] = normalizeXML(child)
 		}
+		return out
 	default:
-		*dest = append(*dest, fmt.Sprintf("%s=%v", prefix, data))
+		return value
 	}
-	return nil
+}
+
+func xmlKey(key string) string {
+	if strings.HasPrefix(key, "-") {
+		return "@" + strings.TrimPrefix(key, "-")
+	}
+	return key
 }
